@@ -1,0 +1,469 @@
+
+import React, { useState, useMemo } from "react";
+
+// ---------------------------------------------------------------------------
+// Data
+// ---------------------------------------------------------------------------
+
+const FABRICS = [
+  { id: "cotton", name: "Cotton", note: "Cellulose fibre, absorbs dye evenly" },
+  { id: "silk", name: "Silk", note: "Protein fibre, takes deep, rich colour" },
+  { id: "wool", name: "Wool", note: "Protein fibre, dye with gentle heat" },
+  { id: "hemp", name: "Hemp", note: "Cellulose fibre, coarse and durable" },
+  { id: "jute", name: "Jute", note: "Cellulose fibre, absorbs colour fast" },
+  { id: "banana", name: "Banana Fibre", note: "Cellulose fibre, slightly glossy" },
+  { id: "bamboo", name: "Bamboo Fibre", note: "Cellulose fibre, very absorbent" },
+];
+
+const WEIGHT_PRESETS = [
+  { g: 100, label: "100 g" },
+  { g: 250, label: "250 g" },
+  { g: 500, label: "500 g" },
+  { g: 1000, label: "1 kg" },
+];
+
+const SHADES = [
+  { id: "light", name: "Light", capsuleMult: 0.75, waterPerG: 20, minutes: 20, swatch: "#E8D9B5" },
+  { id: "medium", name: "Medium", capsuleMult: 1, waterPerG: 15, minutes: 35, swatch: "#C79A45" },
+  { id: "dark", name: "Dark", capsuleMult: 1.5, waterPerG: 10, minutes: 50, swatch: "#7A5222" },
+];
+
+const CARE = [
+  "Rinse in cool water until it runs clear before the first wear.",
+  "Hand wash separately in cool water for the first 3 washes.",
+  "Dry in shade, away from direct sun, to protect the colour.",
+  "Avoid bleach and harsh detergents — they strip natural dye fast.",
+  "Iron on the reverse side, on a low setting.",
+];
+
+const DISPOSAL = [
+  "Empty capsule shells are plant-based and compostable.",
+  "Tear the shell open and add it to a home compost bin or pit.",
+  "Fully breaks down in 60–90 days under normal composting conditions.",
+  "Left-over dye liquid is plant-based — safe to pour on soil, not on hard pavement.",
+  "No shell should go into recycling bins; composting is the intended path.",
+];
+
+function dyeSteps(fabricName, minutes) {
+  return [
+    {
+      title: "Wet the fabric",
+      body: `Soak the ${fabricName.toLowerCase()} in plain water for 10 minutes, then wring out excess. Damp fabric takes dye more evenly than dry.`,
+    },
+    {
+      title: "Open the capsule",
+      body: "Tear along the seam and empty the powder directly into your dye pot. The shell dissolves in warm water — no need to discard it yet.",
+    },
+    {
+      title: "Add water",
+      body: "Pour in the recommended water quantity, warm (not boiling), and stir until the powder is fully dissolved.",
+    },
+    {
+      title: "Submerge the fabric",
+      body: `Lower the fabric in and keep it moving for the first 2 minutes so the colour takes evenly, then let it sit undisturbed.`,
+    },
+    {
+      title: `Simmer for ${minutes} minutes`,
+      body: "Keep the pot on low heat. Stir gently every 5 minutes to prevent blotching.",
+    },
+    {
+      title: "Rinse and dry",
+      body: "Lift the fabric out, rinse in cool water until it runs clear, then hang to dry in shade.",
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Small building blocks
+// ---------------------------------------------------------------------------
+
+function StepLabel({ index, total, title }) {
+  return (
+    <div className="flex items-baseline gap-3 mb-6">
+      <span
+        className="font-mono text-xs tracking-widest"
+        style={{ color: "#8A7A5C" }}
+      >
+        {String(index).padStart(2, "0")} / {String(total).padStart(2, "0")}
+      </span>
+      <h2
+        className="text-2xl sm:text-3xl"
+        style={{ fontFamily: "'Fraunces', serif", color: "#2B2621" }}
+      >
+        {title}
+      </h2>
+    </div>
+  );
+}
+
+function NavButtons({ onBack, onNext, nextLabel = "Continue", nextDisabled }) {
+  return (
+    <div className="flex items-center justify-between mt-10">
+      {onBack ? (
+        <button
+          onClick={onBack}
+          className="font-mono text-xs tracking-widest uppercase px-4 py-3"
+          style={{ color: "#5C5344" }}
+        >
+          ← Back
+        </button>
+      ) : (
+        <span />
+      )}
+      {onNext && (
+        <button
+          onClick={onNext}
+          disabled={nextDisabled}
+          className="font-mono text-xs tracking-widest uppercase px-6 py-3 transition-opacity"
+          style={{
+            backgroundColor: nextDisabled ? "#D9CEB8" : "#2B4A47",
+            color: "#F3EEE1",
+            opacity: nextDisabled ? 0.6 : 1,
+            cursor: nextDisabled ? "not-allowed" : "pointer",
+          }}
+        >
+          {nextLabel} →
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main app
+// ---------------------------------------------------------------------------
+
+const TOTAL_STEPS = 6;
+
+export default function BioCapsuleGuide() {
+  const [screen, setScreen] = useState(0); // 0 = welcome, 1..6 = wizard, 7 = capsule count reveal handled inline
+  const [fabric, setFabric] = useState(null);
+  const [weight, setWeight] = useState(null);
+  const [customWeight, setCustomWeight] = useState("");
+  const [shade, setShade] = useState(null);
+
+  const weightGrams = useMemo(() => {
+    if (weight === "custom") return parseFloat(customWeight) || 0;
+    return weight || 0;
+  }, [weight, customWeight]);
+
+  const shadeData = SHADES.find((s) => s.id === shade);
+
+  const capsuleCount = useMemo(() => {
+    if (!weightGrams || !shadeData) return 0;
+    return Math.max(1, Math.ceil((weightGrams / 100) * shadeData.capsuleMult));
+  }, [weightGrams, shadeData]);
+
+  const waterMl = useMemo(() => {
+    if (!weightGrams || !shadeData) return 0;
+    return Math.round(weightGrams * shadeData.waterPerG);
+  }, [weightGrams, shadeData]);
+
+  const waterLabel =
+    waterMl >= 1000 ? `${(waterMl / 1000).toFixed(2)} L` : `${waterMl} ml`;
+
+  const fabricObj = FABRICS.find((f) => f.id === fabric);
+
+  const reset = () => {
+    setScreen(0);
+    setFabric(null);
+    setWeight(null);
+    setCustomWeight("");
+    setShade(null);
+  };
+
+  return (
+    <div
+      className="min-h-screen w-full flex items-center justify-center p-4 sm:p-8"
+      style={{ backgroundColor: "#F3EEE1" }}
+    >
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+        * { font-family: 'Public Sans', sans-serif; }
+        .font-mono { font-family: 'IBM Plex Mono', monospace; }
+        button { font-family: inherit; }
+      `}</style>
+
+      <div
+        className="w-full max-w-xl"
+        style={{ color: "#2B2621" }}
+      >
+        {/* ---------------------------------------------------------- */}
+        {screen === 0 && (
+          <div className="text-center py-8">
+            <div
+              className="mx-auto mb-8 w-16 h-16 rounded-full"
+              style={{
+                background:
+                  "conic-gradient(from 180deg, #2F4858, #C79A45, #7A2E2E, #2F4858)",
+              }}
+            />
+            <p className="font-mono text-xs tracking-[0.3em] uppercase mb-3" style={{ color: "#8A7A5C" }}>
+              Biodegradable Natural Dye Capsules
+            </p>
+            <h1
+              className="text-4xl sm:text-5xl mb-6 leading-tight"
+              style={{ fontFamily: "'Fraunces', serif", fontWeight: 500 }}
+            >
+              Your fabric,<br />your recipe.
+            </h1>
+            <p className="max-w-sm mx-auto mb-10" style={{ color: "#5C5344" }}>
+              Tell us your fabric and its weight. We'll work out the capsules,
+              water, and timing — then walk you through the dyeing itself.
+            </p>
+            <button
+              onClick={() => setScreen(1)}
+              className="font-mono text-xs tracking-widest uppercase px-8 py-4"
+              style={{ backgroundColor: "#2B4A47", color: "#F3EEE1" }}
+            >
+              Start dyeing →
+            </button>
+          </div>
+        )}
+
+        {/* ---------------------------------------------------------- */}
+        {screen === 1 && (
+          <div>
+            <StepLabel index={1} total={TOTAL_STEPS} title="Select your fabric" />
+            <div className="grid grid-cols-2 gap-3">
+              {FABRICS.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setFabric(f.id)}
+                  className="text-left p-4 border transition-colors"
+                  style={{
+                    borderColor: fabric === f.id ? "#2B4A47" : "#D9CEB8",
+                    backgroundColor: fabric === f.id ? "#E4E9E1" : "transparent",
+                  }}
+                >
+                  <div style={{ fontWeight: 600 }}>{f.name}</div>
+                  <div className="text-xs mt-1" style={{ color: "#8A7A5C" }}>
+                    {f.note}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <NavButtons onNext={() => setScreen(2)} nextDisabled={!fabric} />
+          </div>
+        )}
+
+        {/* ---------------------------------------------------------- */}
+        {screen === 2 && (
+          <div>
+            <StepLabel index={2} total={TOTAL_STEPS} title="Fabric weight" />
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {WEIGHT_PRESETS.map((w) => (
+                <button
+                  key={w.g}
+                  onClick={() => {
+                    setWeight(w.g);
+                    setCustomWeight("");
+                  }}
+                  className="p-4 border font-mono text-sm"
+                  style={{
+                    borderColor: weight === w.g ? "#2B4A47" : "#D9CEB8",
+                    backgroundColor: weight === w.g ? "#E4E9E1" : "transparent",
+                  }}
+                >
+                  {w.label}
+                </button>
+              ))}
+            </div>
+            <div>
+              <label className="text-xs font-mono tracking-widest uppercase" style={{ color: "#8A7A5C" }}>
+                Or enter a custom weight (g)
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={customWeight}
+                onChange={(e) => {
+                  setCustomWeight(e.target.value);
+                  setWeight("custom");
+                }}
+                placeholder="e.g. 350"
+                className="w-full mt-2 p-3 border font-mono text-sm outline-none"
+                style={{
+                  borderColor: weight === "custom" ? "#2B4A47" : "#D9CEB8",
+                  backgroundColor: "transparent",
+                }}
+              />
+            </div>
+            <NavButtons
+              onBack={() => setScreen(1)}
+              onNext={() => setScreen(3)}
+              nextDisabled={!weightGrams}
+            />
+          </div>
+        )}
+
+        {/* ---------------------------------------------------------- */}
+        {screen === 3 && (
+          <div>
+            <StepLabel index={3} total={TOTAL_STEPS} title="Choose shade intensity" />
+            <div className="space-y-3">
+              {SHADES.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setShade(s.id)}
+                  className="w-full flex items-center gap-4 p-4 border text-left"
+                  style={{
+                    borderColor: shade === s.id ? "#2B4A47" : "#D9CEB8",
+                    backgroundColor: shade === s.id ? "#E4E9E1" : "transparent",
+                  }}
+                >
+                  <span
+                    className="w-10 h-10 rounded-full shrink-0"
+                    style={{ backgroundColor: s.swatch, border: "1px solid #00000022" }}
+                  />
+                  <span>
+                    <div style={{ fontWeight: 600 }}>{s.name} Shade</div>
+                    <div className="text-xs font-mono" style={{ color: "#8A7A5C" }}>
+                      ~{s.minutes} min simmer
+                    </div>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <NavButtons
+              onBack={() => setScreen(2)}
+              onNext={() => setScreen(4)}
+              nextDisabled={!shade}
+            />
+          </div>
+        )}
+
+        {/* ---------------------------------------------------------- */}
+        {screen === 4 && shadeData && (
+          <div>
+            <StepLabel index={4} total={TOTAL_STEPS} title="Your recipe" />
+            <div
+              className="p-6 mb-6 border"
+              style={{ borderColor: "#D9CEB8" }}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-xs font-mono uppercase tracking-widest" style={{ color: "#8A7A5C" }}>
+                  {fabricObj?.name} · {weightGrams} g · {shadeData.name} shade
+                </span>
+                <span
+                  className="w-6 h-6 rounded-full"
+                  style={{ backgroundColor: shadeData.swatch, border: "1px solid #00000022" }}
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <div className="text-3xl font-mono" style={{ fontWeight: 500 }}>
+                    {capsuleCount}
+                  </div>
+                  <div className="text-xs" style={{ color: "#8A7A5C" }}>
+                    {capsuleCount === 1 ? "capsule" : "capsules"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-3xl font-mono" style={{ fontWeight: 500 }}>
+                    {waterLabel}
+                  </div>
+                  <div className="text-xs" style={{ color: "#8A7A5C" }}>
+                    water
+                  </div>
+                </div>
+                <div>
+                  <div className="text-3xl font-mono" style={{ fontWeight: 500 }}>
+                    {shadeData.minutes}m
+                  </div>
+                  <div className="text-xs" style={{ color: "#8A7A5C" }}>
+                    simmer time
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="text-sm" style={{ color: "#5C5344" }}>
+              This is calculated for {fabricObj?.name.toLowerCase()} at {weightGrams} g.
+              Next, the step-by-step dyeing process.
+            </p>
+            <NavButtons onBack={() => setScreen(3)} onNext={() => setScreen(5)} />
+          </div>
+        )}
+
+        {/* ---------------------------------------------------------- */}
+        {screen === 5 && shadeData && fabricObj && (
+          <div>
+            <StepLabel index={5} total={TOTAL_STEPS} title="Dyeing process" />
+            <div className="space-y-5">
+              {dyeSteps(fabricObj.name, shadeData.minutes).map((s, i) => (
+                <div key={i} className="flex gap-4">
+                  <span
+                    className="font-mono text-sm shrink-0 w-6 pt-0.5"
+                    style={{ color: "#8A7A5C" }}
+                  >
+                    {i + 1}
+                  </span>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{s.title}</div>
+                    <div className="text-sm mt-1" style={{ color: "#5C5344" }}>
+                      {s.body}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div
+              className="mt-6 p-3 border text-xs font-mono"
+              style={{ borderColor: "#D9CEB8", color: "#8A7A5C" }}
+            >
+              Reference photo / video slot — add your own dyeing shots here.
+            </div>
+            <NavButtons onBack={() => setScreen(4)} onNext={() => setScreen(6)} />
+          </div>
+        )}
+
+        {/* ---------------------------------------------------------- */}
+        {screen === 6 && (
+          <div>
+            <StepLabel index={6} total={TOTAL_STEPS} title="Care & disposal" />
+            <div className="mb-8">
+              <h3 className="text-xs font-mono uppercase tracking-widest mb-3" style={{ color: "#8A7A5C" }}>
+                Fabric care
+              </h3>
+              <ul className="space-y-2">
+                {CARE.map((c, i) => (
+                  <li key={i} className="text-sm flex gap-2" style={{ color: "#5C5344" }}>
+                    <span style={{ color: "#2B4A47" }}>—</span> {c}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-xs font-mono uppercase tracking-widest mb-3" style={{ color: "#8A7A5C" }}>
+                Capsule disposal
+              </h3>
+              <ul className="space-y-2">
+                {DISPOSAL.map((d, i) => (
+                  <li key={i} className="text-sm flex gap-2" style={{ color: "#5C5344" }}>
+                    <span style={{ color: "#7A5222" }}>—</span> {d}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="flex justify-between items-center mt-10">
+              <button
+                onClick={() => setScreen(5)}
+                className="font-mono text-xs tracking-widest uppercase px-4 py-3"
+                style={{ color: "#5C5344" }}
+              >
+                ← Back
+              </button>
+              <button
+                onClick={reset}
+                className="font-mono text-xs tracking-widest uppercase px-6 py-3"
+                style={{ backgroundColor: "#2B4A47", color: "#F3EEE1" }}
+              >
+                Start a new recipe
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
